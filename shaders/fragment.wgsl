@@ -113,11 +113,36 @@ fn calculateChangeEta(x_global: f32, y_global: f32, dx: f32, amplitude: f32, the
 
 
 @fragment
-fn fs_main(@location(1) uv: vec2<f32>) -> FragmentOutput {
+fn fs_main(@location(1) uv_input: vec2<f32>) -> FragmentOutput {
     var out: FragmentOutput;
     
     var colorMap: array<vec3<f32>, 16>;
     let colorMap_choice = globals.colorMap_choice;
+
+    // ★★★ APPLY CAMERA TRANSFORMATIONS (rotation, shift, zoom) ★★★
+    // Convert rotation angle from degrees to radians
+    let rotation_rad = globals.rotationAngle_xy * 3.14159265 / 180.0;
+    let cos_angle = cos(rotation_rad);
+    let sin_angle = sin(rotation_rad);
+    
+    // Center the UV coordinates (0.5, 0.5) is the center
+    var uv_transformed = uv_input - vec2<f32>(0.5, 0.5);
+    
+    // Apply zoom (forward parameter)
+    uv_transformed = uv_transformed / globals.forward;
+    
+    // Apply shifts
+    uv_transformed = uv_transformed - vec2<f32>(globals.shift_x, globals.shift_y);
+    
+    // Apply rotation around center
+    let uv_rotated = vec2<f32>(
+        uv_transformed.x * cos_angle - uv_transformed.y * sin_angle,
+        uv_transformed.x * sin_angle + uv_transformed.y * cos_angle
+    );
+    
+    // Move back from center - this is the final transformed UV
+    var uv = uv_rotated + vec2<f32>(0.5, 0.5);
+    // ★★★ END CAMERA TRANSFORMATIONS ★★★
 
     // grid size ratio, for irregular grids
     let grid_ratio = globals.dx / globals.dy;

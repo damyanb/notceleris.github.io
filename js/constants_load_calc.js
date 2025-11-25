@@ -8,7 +8,7 @@ for (let i = 0; i < 16; i++) {
         P: [],
         Q: []
     });
-}  
+}
 
 // set simulation parameters to default values
 var calc_constants = {
@@ -57,7 +57,7 @@ var calc_constants = {
     BoundaryWidth: 20, //  number of grid points for sponge layer
     incident_wave_type: -1, // 0 Sine Wave (single harmonic); 1 TMA Spectrum; 2 Transient Pulse (4 waves); 3 Solitary Wave; -1 Custom Spectum from loaded file; 5 Time Series from loaded file
 
-    // generic wave parameters used for debug 
+    // generic wave parameters used for debug
     amplitude: 0.0,
     period: 10.0,
     direction: 0.0,
@@ -70,7 +70,7 @@ var calc_constants = {
     numberOfWaves: 0, // number of wave components to be created
 
     // Vessel motion parameters (initial development)
-    ship_posx: -100.0,  // initial ship position, if initially inside domain, the initial free surface must include the ship displacement 
+    ship_posx: -100.0,  // initial ship position, if initially inside domain, the initial free surface must include the ship displacement
     ship_posy: 450.0,
     ship_width: 10.0,  // ship beam
     ship_length: 30.0,  // ship length
@@ -107,7 +107,7 @@ var calc_constants = {
     stage_100: 0.0,
     stage_200: 0.0,
     stage_500: 0.0,
-    
+
     //  add disturbence parameters
     add_Disturbance: -1, // will be changed to 1 when user clicks "Add"
     disturbanceType: 1, // for various choices, 1= solitary wave, etc.
@@ -184,8 +184,8 @@ var calc_constants = {
     surfaceToPlot: 0, // which surface (eta, u, v, vort) to plot
     bathy_cmap_zero: 0.0, // shift in the topo shading colormap, sometimes need to move to see topo
     showBreaking: 1,  //  show breaking (foam) areas when ==1
-    dissipation_threshold: 0.2, // wave slope for breaking 
-    whiteWaterDecayRate: 0.02, // "turbulence" decay rate   
+    dissipation_threshold: 0.2, // wave slope for breaking
+    whiteWaterDecayRate: 0.02, // "turbulence" decay rate
     whiteWaterDispersion: 0.1, // "turbulence" dispersion
     infiltrationRate: 0.001, // dry beach infiltration rate
     ShowLogos: 0, // show USC and ERDC logos
@@ -226,7 +226,7 @@ var calc_constants = {
     updateTimeSeriesTx: 0, // set to one to update time series locations texture
     chartDataUpdate: 0, // update the chart dataset if == 1
     locationOfTimeSeries: [  // coordinates of time series.  If change to >16, probably need to make this loop driven
-        { xts: 0.0, yts: 0.0 },  // first index is used by the tooltip, so only maxNumberOfTimeSeries-1 time series 
+        { xts: 0.0, yts: 0.0 },  // first index is used by the tooltip, so only maxNumberOfTimeSeries-1 time series
         { xts: 0.0, yts: 0.0 },
         { xts: 0.0, yts: 0.0 },
         { xts: 0.0, yts: 0.0 },
@@ -260,10 +260,19 @@ var calc_constants = {
     rotationAngle_xy: 0.0, // rotation angle of 2D x-y plane
     rotationAngle_xz: 0.0, // rotation angle of 2D x-z plane
     renderZScale: 1.0, // vertical exaggeration for drone fly through render
+
+    // ★★★ STEREO CAMERA PARAMETERS ★★★
+    // These control the two simultaneous views for stereo rendering
+    // GROUND-LEVEL CAMERA CONFIGURATION (like security camera or pedestrian view)
+    camera1_yaw: -30.0,    // Camera 1 yaw angle (XY rotation) in degrees - looking left
+    camera1_pitch: 45.0,    // Camera 1 pitch angle (XZ rotation) in degrees - slightly up from horizon
+    camera2_yaw: 45.0,     // Camera 2 yaw angle (XY rotation) in degrees - looking right
+    camera2_pitch: 55.0,    // Camera 2 pitch angle (XZ rotation) in degrees - slightly up from horizon
+    stereo_baseline: 20.0,  // Horizontal separation between cameras in meters (human eye separation ~0.065m, but exaggerated for effect)
     renderLocktoGround: 0, // lock the drone fly through
-    renderEyeHeight: 2.0, // eyeheight for ground-locked render view
+    renderEyeHeight: 15, // ★ Camera height above ground (meters) - 1.5m = human eye level at ground
     shift_x: 0.0, // x shift of 2D plane
-    shift_y: 0.0, // y shift of 2D plane
+    shift_y: 5.0, // y shift of 2D plane
     forward: 1.0, // zoom in/out of 2D plane
     full_screen: 0, // = 0 regular, = 1 in fullscreen
     canvas_width_ratio: 1.0, // for full screen asepct ratio correction
@@ -303,22 +312,22 @@ var calc_constants = {
     write_u: 0, // flag for writing x velocity surface data to file, write when = 1
     write_v: 0, // flag for writing y velocity surface data to file, write when = 1
     write_turb: 0, // flag for writing eddy visc surface data to file, write when = 1
-    dt_writesurface: 1.0, // incrememnt to write to file 
+    dt_writesurface: 1.0, // incrememnt to write to file
     fileWritePause: 100, // time (ms) to pause during 2D surface write to not overload write buffer
     write_individual_surface: 0, // flag to write individual 2D surface
-    which_surface_to_write: 0,  // flag for which surface to write 
+    which_surface_to_write: 0,  // flag for which surface to write
 
     // save trigger parameters, for automatically saving data
-    trigger_animation: 0, // user trigger / automation when = 1, 
+    trigger_animation: 0, // user trigger / automation when = 1,
     // will change to 2 while storing frames, and back to 0 when done
     trigger_animation_start_time: 0.0, // start time of animation trigger
 
-    trigger_writesurface: 0, // user trigger / automation when = 1, 
+    trigger_writesurface: 0, // user trigger / automation when = 1,
     // will change to 2 while writing data, and back to 0 when done
     trigger_writesurface_start_time: 0.0, // start time of surface write trigger
     trigger_writesurface_end_time: 0.0, // end time of surface write trigger
-    
-    trigger_writeWaveHeight:0, // user trigger / automation when = 1, 
+
+    trigger_writeWaveHeight:0, // user trigger / automation when = 1,
     // will change to 2 after resetMeans
     // will change to 3 after resetWaveHeight
     // will change back to 0 when done writing waveheight, and will write complete.txt to file
@@ -338,7 +347,7 @@ async function loadConfig() {
         }
         loadedConfig = await response.json();
         calc_constants = { ...calc_constants, ...loadedConfig };
-        
+
         console.log("Server side example config.json loaded successfully.");
     } catch (error) {
         console.error("Failed to load configuration:", error);
@@ -458,11 +467,11 @@ async function init_sim_parameters(canvas, configContent) {
     calc_constants.changeAmplitude = 0.1 * calc_constants.base_depth;
 
     calc_constants.sedC1_erosion = calc_constants.sedC1_psi*Math.pow(calc_constants.sedC1_d50/1000.,-0.2);
-    
+
     calc_constants.sedC1_shields = 1.0 / ( (calc_constants.sedC1_denrat - 1.0) * calc_constants.g  * calc_constants.sedC1_d50/1000.);
 
     calc_constants.sedC1_bedloadMPM = 8.0 * Math.sqrt(calc_constants.g  * (calc_constants.sedC1_denrat - 1.0) * Math.pow(calc_constants.sedC1_d50/1000., 3.0));
-    
+
     let nu = 0.000001; // kinematic viscosity of water in m^2/s
     let delta = calc_constants.sedC1_denrat - 1.0;
     let d = calc_constants.sedC1_d50/1000.; // convert d50 to meters
@@ -473,9 +482,9 @@ async function init_sim_parameters(canvas, configContent) {
     let fall_vel = nu / d * (Math.sqrt(0.25 * (A / B) ** (2 / n) + (4 / 3 * (ds ** 3 / B)) ** (1 / n)) - 0.5 * (A / B) ** (1 / n)) ** n; // fall velocity for natural particles; nu/d*(sqrt(0.25*(A/B)^(2/n)+(4/3*(ds^3/B))^(1/n))-0.5*(A/B)^(1/n))^n
     calc_constants.sedC1_fallvel = fall_vel; // set the fall velocity for Class 1 sediment
     // console.log(ds, fall_vel)
-    //let fall_vel_a = 4.0 / 3.0 * 9.81 * calc_constants.sedC1_d50/1000. / 0.2 * (calc_constants.sedC1_denrat - 1.0); 
+    //let fall_vel_a = 4.0 / 3.0 * 9.81 * calc_constants.sedC1_d50/1000. / 0.2 * (calc_constants.sedC1_denrat - 1.0);
     //calc_constants.sedC1_fallvel = Math.pow(fall_vel_a, 0.5);
- 
+
     // Set the canvas dimensions based on the above-defined WIDTH and HEIGHT values.
     let grid_ratio = calc_constants.dx / calc_constants.dy;
     if (grid_ratio >= 1.0) {
@@ -489,8 +498,16 @@ async function init_sim_parameters(canvas, configContent) {
         calc_constants.canvas_width_ratio = grid_ratio;
     }
 
+    // ★ Set canvas2 to EXACTLY the same size as canvas1
+    const canvas2 = document.getElementById('webgpuCanvas2');
+    if (canvas2) {
+        canvas2.width = canvas.width;
+        canvas2.height = canvas.height;
+        console.log(`★ Canvas2 size set to: ${canvas2.width} x ${canvas2.height} (matching Canvas1)`);
+    }
+
     // colorbar properties
-    calc_constants.CB_show = 1; // show colorbar when = 1 
+    calc_constants.CB_show = 1; // show colorbar when = 1
     calc_constants.CB_xbuffer_uv = 0.01;  // 1% width buffer on either side of colorbar area
     calc_constants.CB_xstart_uv = 0.05;  // colorbar starts at 5% of width
     calc_constants.CB_width_uv = 1.0 - 2.0 * calc_constants.CB_xstart_uv;  // 4% width buffer on either side of colorbar area
@@ -499,7 +516,7 @@ async function init_sim_parameters(canvas, configContent) {
     calc_constants.CB_width = Math.floor(canvas.width*calc_constants.CB_width_uv)-1;  // 4% width buffer on either side of colorbar area
     calc_constants.CB_ystart = 30;  // colorbar starts at pixel 30 - this is where the tick marks will be plotted
     calc_constants.CB_label_height = 10; // pixel index to place colorbar label
-    
+
     calc_constants.chartDataUpdate = 1; // update chart to start
 
     console.log("Simulation parameters set.");

@@ -33,8 +33,9 @@ import { runTridiagSolver } from './Run_Tridiag_Solver.js';  // function to run 
 import { displayCalcConstants, displaySimStatus, displayTimeSeriesLocations, displaySlideVolume, ConsoleLogRedirection} from './display_parameters.js';  // starting point for display of simulation parameters
 import { mat4, vec3 } from 'https://cdn.jsdelivr.net/npm/gl-matrix/esm/index.js';
 
-// Get a reference to the HTML canvas element with the ID 'webgpuCanvas'
+// Get a reference to the HTML canvas elements
 const canvas = document.getElementById('webgpuCanvas');
+const canvas2 = document.getElementById('webgpuCanvas2'); // ★ Second canvas for stereo view
 
 // Access the WebGPU object. This is the entry point to the WebGPU API.
 const gpu = navigator.gpu;
@@ -42,12 +43,14 @@ const gpu = navigator.gpu;
 // globals in this source file
 let device = null;
 let txScreen = null;
+let txScreen2 = null;  // ★ Screen texture for second canvas
 let txAnimation = null;
 let txOverlayMap = null;
 let txGoogleMap = null;
 let txSatMap = null;
 let txDraw = null;
 let context = null;
+let context2 = null;  // ★ WebGPU context for second canvas
 let adapter = null;
 
 // Initialize a global set to track texture, pipeline objects
@@ -95,6 +98,7 @@ async function initializeWebGPUApp(configContent, bathymetryContent, waveContent
     device = null;
     adapter = null;
     context = null;
+    context2 = null;  // ★ Clear second context
     calc_constants.GoogleMapOverlay = 0; // not all configs have this declared, so can create issue when switching back and forth
     calc_constants.render_step = 1; // for new sim, force render step back to zero
 
@@ -119,12 +123,20 @@ async function initializeWebGPUApp(configContent, bathymetryContent, waveContent
 
     // Get the WebGPU rendering context from the canvas.
     context = canvas.getContext('webgpu');
+    context2 = canvas2.getContext('webgpu');  // ★ Get context for second canvas
 
     // Define the format for our swap chain. 'bgra8unorm' is a commonly used format.
     const swapChainFormat = 'bgra8unorm';
 
     // Configure the WebGPU context with the device, format, and desired texture usage.
     context.configure({
+        device: device,
+        format: swapChainFormat,
+        usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC
+    });
+    
+    // ★ Configure second canvas context (same settings)
+    context2.configure({
         device: device,
         format: swapChainFormat,
         usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC
@@ -156,6 +168,7 @@ async function initializeWebGPUApp(configContent, bathymetryContent, waveContent
     const ExtractTimeSeries_uniformBuffer = createUniformBuffer(device);
     let Render_bufferSize = 272; // 272 bytes for render pipeline, 256 for compute pipeline
     const Render_uniformBuffer = createUniformBuffer(device,Render_bufferSize);
+    const Render_uniformBuffer2 = createUniformBuffer(device,Render_bufferSize); // ★ Second buffer for Camera 2
     const Skybox_uniformBuffer = createUniformBuffer(device); // View and Projection buffer: holds two 4×4 f32 view matrix (16 floats → 64 bytes)
     const Model_uniformBuffer = createUniformBuffer(device);
     const Copytxf32_txf16_uniformBuffer = createUniformBuffer(device);
@@ -277,6 +290,7 @@ async function initializeWebGPUApp(configContent, bathymetryContent, waveContent
     const txBaseline_WaveHeight = create_2D_Texture(device, calc_constants.WIDTH, calc_constants.HEIGHT, allTextures);  // stores "baseline" wave height surface
     const txzeros = create_2D_Texture(device, calc_constants.WIDTH, calc_constants.HEIGHT, allTextures);  // stores a zeros texture, for reseting textures to zero
     txScreen = create_2D_Image_Texture(device, canvas.width, canvas.height, allTextures);  // used for jpg output
+    txScreen2 = create_2D_Image_Texture(device, canvas2.width, canvas2.height, allTextures);  // ★ Screen texture for second canvas
     txDraw = create_2D_Image_Texture(device, canvas.width, canvas.height, allTextures);  // used for creating text & shapes on an HTML5 canvas
     txGoogleMap = create_2D_Texture(device, calc_constants.GMapImageWidth, calc_constants.GMapImageHeight, allTextures);  // used to store the loaded Google Maps image
     txOverlayMap = create_2D_Texture(device, calc_constants.GMapImageWidth, calc_constants.GMapImageHeight, allTextures);  // used to store the loaded Google Maps image
@@ -1000,8 +1014,16 @@ async function initializeWebGPUApp(configContent, bathymetryContent, waveContent
     // Render Bindings
     const RenderBindGroupLayout = createRenderBindGroupLayout(device);
     var RenderBindGroup = createRenderBindGroup(device, Render_uniformBuffer, txNewState, txBottom, txMeans, txWaveHeight, txBaseline_WaveHeight, txBottomFriction, txNewState_Sed, txBottomInitial, txBotChange_Sed, txDesignComponents, txOverlayMap, txDraw, textureSampler, txTimeSeries_Locations, txBreaking, txSamplePNGs, textureSampler_linear, txRenderVarsf16);
+    
+    // ★ Create second bind group for Camera 2
+    var RenderBindGroup2 = createRenderBindGroup(device, Render_uniformBuffer2, txNewState, txBottom, txMeans, txWaveHeight, txBaseline_WaveHeight, txBottomFriction, txNewState_Sed, txBottomInitial, txBotChange_Sed, txDesignComponents, txOverlayMap, txDraw, textureSampler, txTimeSeries_Locations, txBreaking, txSamplePNGs, textureSampler_linear, txRenderVarsf16);
+    
     const Render_uniforms = new ArrayBuffer(Render_bufferSize);  // smallest multiple of 256
     let Render_view = new DataView(Render_uniforms);
+    
+    // ★ Create second uniforms buffer for Camera 2
+    const Render_uniforms2 = new ArrayBuffer(Render_bufferSize);
+    let Render_view2 = new DataView(Render_uniforms2);
     Render_view.setFloat32(0, calc_constants.colorVal_max, true);          // f32
     Render_view.setFloat32(4, calc_constants.colorVal_min, true);          // f32
     Render_view.setInt32(8, calc_constants.colorMap_choice, true);             // i32
@@ -1016,10 +1038,13 @@ async function initializeWebGPUApp(configContent, bathymetryContent, waveContent
     Render_view.setFloat32(44, calc_constants.dy, true);          // f32
     Render_view.setInt32(48, calc_constants.WIDTH, true);          // i32
     Render_view.setInt32(52, calc_constants.HEIGHT, true);          // i32  
-    Render_view.setFloat32(56, calc_constants.rotationAngle_xy, true);          // f32  
+    Render_view.setFloat32(56, calc_constants.rotationAngle_xy, true);          // f32 (will be overridden by camera angles)
     Render_view.setFloat32(60, calc_constants.shift_x, true);          // f32  
-    Render_view.setFloat32(64, calc_constants.shift_y, true);          // f32  
-    Render_view.setFloat32(68, calc_constants.forward, true);          // f32  
+    Render_view.setFloat32(64, calc_constants.shift_y, true);          // f32 (will be overridden by camera angles)
+    Render_view.setFloat32(68, calc_constants.forward, true);          // f32 (will be overridden by camera angles)
+    console.log(`★ Initial render values - shift_y: ${calc_constants.shift_y}, forward: ${calc_constants.forward}`);
+    console.log(`★ Camera 1 angles - Yaw: ${calc_constants.camera1_yaw}°, Pitch: ${calc_constants.camera1_pitch}°`);
+    console.log(`★ Camera 2 angles - Yaw: ${calc_constants.camera2_yaw}°, Pitch: ${calc_constants.camera2_pitch}°`);  
     Render_view.setFloat32(72, calc_constants.canvas_width_ratio, true);          // f32 
     Render_view.setFloat32(76, calc_constants.canvas_height_ratio, true);          // f32 
     Render_view.setFloat32(80, calc_constants.delta, true);           // f32
@@ -1059,6 +1084,14 @@ async function initializeWebGPUApp(configContent, bathymetryContent, waveContent
     Render_view.setFloat32(260, calc_constants.arrow_scale, true);          // f32 
     Render_view.setFloat32(264, calc_constants.arrow_density, true);          // f32 
     Render_view.setFloat32(268, calc_constants.disturbanceType, true);          // f32
+
+    // ★ Copy ALL values from Render_uniforms to Render_uniforms2
+    const tempArray = new Uint8Array(Render_uniforms);
+    const tempArray2 = new Uint8Array(Render_uniforms2);
+    for (let i = 0; i < Render_bufferSize; i++) {
+        tempArray2[i] = tempArray[i];
+    }
+    console.log("★ Created independent uniform buffers for both cameras");
 
     // Copy f32 data to f16 texture compute shader
     const Copytxf32_txf16_BindGroupLayout = create_Copytxf32_txf16_BindGroupLayout(device);
@@ -1891,25 +1924,44 @@ async function initializeWebGPUApp(configContent, bathymetryContent, waveContent
             }
         };
 
+        // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+        // ★★★ PREPARE CAMERA 1 BUFFER BEFORE RENDER PASS ★★★
+        // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+        let grid_ratio = calc_constants.dx / calc_constants.dy;
+        if (calc_constants.viewType == 1)
+        {
+            // ★★★ CAMERA 1 CONFIGURATION - MUST BE BEFORE RENDER PASS ★★★
+            console.log(`[Camera 1] Yaw: ${calc_constants.camera1_yaw}°, Pitch: ${calc_constants.camera1_pitch}°`);
+            
+            // Yaw controls rotation
+            Render_view.setFloat32(56, calc_constants.camera1_yaw, true);  // f32 rotationAngle_xy
+            
+            // Pitch controls vertical shift (more pitch = shift up/down)
+            const pitchShiftFactor = calc_constants.camera1_pitch / 90.0; // Normalize to -1 to 1
+            const shift_y_cam1 = calc_constants.shift_y + pitchShiftFactor * 0.5;
+            Render_view.setFloat32(64, shift_y_cam1, true);  // f32 shift_y
+            
+            // Pitch controls zoom (higher pitch = zoom in)
+            const pitchZoomFactor = calc_constants.forward * (1.0 + Math.abs(calc_constants.camera1_pitch) / 90.0);
+            Render_view.setFloat32(68, pitchZoomFactor, true);  // f32 forward (zoom)
+            
+            console.log(`[Camera 1] shift_y: ${shift_y_cam1}, zoom: ${pitchZoomFactor}`);
+
+            // ★ Write uniforms to GPU BEFORE creating command encoder
+            device.queue.writeBuffer(Render_uniformBuffer, 0, Render_uniforms);
+        }
+
         commandEncoder = device.createCommandEncoder();
 
         // Begin recording commands for the render pass.
         const RenderPass = commandEncoder.beginRenderPass(RenderPassDescriptor);
 
-        let grid_ratio = calc_constants.dx / calc_constants.dy;
         if (calc_constants.viewType == 1)
         {
-            
-            // Set the render pipeline, bind group, and vertex buffer.
+            // Set the render pipeline and draw
             RenderPass.setPipeline(RenderPipeline);
             RenderPass.setBindGroup(0, RenderBindGroup);
-
-            // set uniforms buffer
-            device.queue.writeBuffer(Render_uniformBuffer, 0, Render_uniforms);
-
-            // Render QUAD
             RenderPass.setVertexBuffer(0, quadVertexBuffer);
-            // Issue draw command to draw
             RenderPass.draw(4);  // Draw the quad 
         }
         else if (calc_constants.viewType == 2)  // 3D / drone / walk-through perspective !
@@ -1918,6 +1970,12 @@ async function initializeWebGPUApp(configContent, bathymetryContent, waveContent
             // ──────────────────────────────────────────────────────────────────────────────
             // FULL "Perspective + Model" setup
             // ──────────────────────────────────────────────────────────────────────────────
+
+            // ★★★ DUAL CAMERA RENDERING FOR STEREO VIEW ★★★
+            // This section renders the scene twice with different camera angles
+            // Camera 1 uses: calc_constants.camera1_yaw, calc_constants.camera1_pitch
+            // Camera 2 uses: calc_constants.camera2_yaw, calc_constants.camera2_pitch
+            // Baseline separation: calc_constants.stereo_baseline
 
             // ─────────────────────────────────────────────────────────────
             // 1. Canvas dimensions
@@ -1939,16 +1997,20 @@ async function initializeWebGPUApp(configContent, bathymetryContent, waveContent
             // Get current state
             const camState = window.cameraState;
 
+            // ★ Use Camera 1 angles for first render
+            const activeYaw = calc_constants.camera1_yaw * Math.PI / 180;
+            const activePitch = calc_constants.camera1_pitch * Math.PI / 180;
+
             // Calculate delta from previous frame
-            const deltaYaw = calc_constants.rotationAngle_xy * Math.PI / 180 - camState.yaw;
-            const deltaPitch = calc_constants.rotationAngle_xz * Math.PI / 180 - camState.pitch;
+            const deltaYaw = activeYaw - camState.yaw;
+            const deltaPitch = activePitch - camState.pitch;
             const deltaPanX = calc_constants.shift_x - camState.panX;
             const deltaPanY = calc_constants.shift_y - camState.panY;
             const deltaForward = calc_constants.forward - camState.forward;
 
             // Update current values
-            camState.yaw = calc_constants.rotationAngle_xy * Math.PI / 180;
-            camState.pitch = calc_constants.rotationAngle_xz * Math.PI / 180;
+            camState.yaw = activeYaw;  // ★ Use Camera 1 yaw
+            camState.pitch = activePitch;  // ★ Use Camera 1 pitch
             camState.panX = calc_constants.shift_x;
             camState.panY = calc_constants.shift_y;
             camState.forward = calc_constants.forward;
@@ -2190,7 +2252,211 @@ async function initializeWebGPUApp(configContent, bathymetryContent, waveContent
 
         // Submit the recorded commands to the GPU for execution.
         device.queue.submit([commandEncoder.finish()]);
-        // end screen render    
+        // end screen render for Camera 1
+        
+        // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+        // ★★★ SECOND RENDER PASS FOR CAMERA 2 (STEREO VIEW) ★★★
+        // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+        
+        // Render second view in BOTH 2D and 3D modes
+        if (calc_constants.viewType == 1) {
+            // ═══════════════════════════════════════════════════
+            // 2D MODE - Second camera render (simple rotation)
+            // ═══════════════════════════════════════════════════
+            
+            // ★★★ CAMERA 2 CONFIGURATION - PREPARE BUFFER FIRST ★★★
+            console.log(`[Camera 2] Yaw: ${calc_constants.camera2_yaw}°, Pitch: ${calc_constants.camera2_pitch}°`);
+            
+            // Yaw controls rotation
+            Render_view2.setFloat32(56, calc_constants.camera2_yaw, true);  
+            
+            // Pitch controls vertical shift
+            const pitchShiftFactor2 = calc_constants.camera2_pitch / 90.0;
+            const shift_y_cam2 = calc_constants.shift_y + pitchShiftFactor2 * 0.5;
+            Render_view2.setFloat32(64, shift_y_cam2, true);  
+            
+            // Pitch controls zoom
+            const pitchZoomFactor2 = calc_constants.forward * (1.0 + Math.abs(calc_constants.camera2_pitch) / 90.0);
+            Render_view2.setFloat32(68, pitchZoomFactor2, true);  
+            
+            console.log(`[Camera 2] shift_y: ${shift_y_cam2}, zoom: ${pitchZoomFactor2}`);
+
+            // ★ Write to GPU BEFORE starting render pass
+            device.queue.writeBuffer(Render_uniformBuffer2, 0, Render_uniforms2);
+            
+            // Get render target
+            const colorTexture2 = context2.getCurrentTexture();
+            let depthTexture2 = null;
+            if (!depthTexture2 || depthTexture2.width !== colorTexture2.width || depthTexture2.height !== colorTexture2.height) {
+                depthTexture2?.destroy?.();
+                depthTexture2 = create_Depth_Texture(device, colorTexture2.width, colorTexture2.height, allTextures);
+            }
+            const depthView2 = depthTexture2.createView();
+
+            const RenderPassDescriptor2 = {
+                colorAttachments: [{
+                    view: colorTexture2.createView(),
+                    loadOp: 'clear',
+                    storeOp: 'store',
+                    clearColor: { r: 0.2, g: 0.3, b: 0.4, a: 1.0 },  // ★ Different clear color for debugging
+                }],
+                depthStencilAttachment: {
+                    view: depthView2,
+                    depthLoadOp: 'clear',
+                    depthStoreOp: 'store',
+                    depthClearValue: 1.0,
+                }
+            };
+
+            commandEncoder = device.createCommandEncoder();
+            const RenderPass2 = commandEncoder.beginRenderPass(RenderPassDescriptor2);
+
+            RenderPass2.setPipeline(RenderPipeline);
+            RenderPass2.setBindGroup(0, RenderBindGroup2);  // ★ Use SECOND bind group
+            RenderPass2.setVertexBuffer(0, quadVertexBuffer);
+            RenderPass2.draw(4);  // Draw the quad
+
+            RenderPass2.end();
+            device.queue.submit([commandEncoder.finish()]);
+
+            // Store second camera render to texture
+            if (calc_constants.full_screen == 0) {
+                const current_render2 = context2.getCurrentTexture();
+                commandEncoder = device.createCommandEncoder();
+                commandEncoder.copyTextureToTexture(
+                    { texture: current_render2 },
+                    { texture: txScreen2 },
+                    { width: canvas2.width, height: canvas2.height, depthOrArrayLayers: 1 }
+                );
+                device.queue.submit([commandEncoder.finish()]);
+            }
+        }
+        else if (calc_constants.viewType == 2) {  // 3D mode - full stereo with position offset
+            // Make sure depthTexture2 matches the current canvas2 size
+            const colorTexture2 = context2.getCurrentTexture();
+            let depthTexture2 = null;
+            // (Re)create depth texture if size changed
+            if (!depthTexture2 || depthTexture2.width !== colorTexture2.width || depthTexture2.height !== colorTexture2.height) {
+                depthTexture2?.destroy?.();
+                depthTexture2 = create_Depth_Texture(device, colorTexture2.width, colorTexture2.height, allTextures);
+            }
+            const depthView2 = depthTexture2.createView();
+
+            const RenderPassDescriptor2 = {
+                colorAttachments: [{
+                    view: colorTexture2.createView(),
+                    loadOp: 'clear',
+                    storeOp: 'store',
+                    clearColor: { r: 0.5, g: 0.5, b: 0.5, a: 1 },
+                }],
+                depthStencilAttachment: {
+                    view: depthView2,
+                    depthLoadOp: 'clear',
+                    depthStoreOp: 'store',
+                    depthClearValue: 1.0,
+                }
+            };
+
+            commandEncoder = device.createCommandEncoder();
+            const RenderPass2 = commandEncoder.beginRenderPass(RenderPassDescriptor2);
+
+            // ★ Use Camera 2 angles for second render
+            const camera2Yaw = calc_constants.camera2_yaw * Math.PI / 180;
+            const camera2Pitch = calc_constants.camera2_pitch * Math.PI / 180;
+
+            // Calculate orientation vectors for Camera 2
+            const c2Y = Math.cos(camera2Yaw), s2Y = Math.sin(camera2Yaw);
+            const c2P = Math.cos(camera2Pitch), s2P = Math.sin(camera2Pitch);
+
+            const forward2 = vec3.fromValues(c2Y * c2P, s2Y * c2P, s2P);
+            const worldUp2 = vec3.fromValues(0, 0, 1);
+            const right2 = vec3.create();
+            vec3.cross(right2, forward2, worldUp2);
+            vec3.normalize(right2, right2);
+
+            const up2 = vec3.create();
+            vec3.cross(up2, right2, forward2);
+            if (Math.abs(calc_constants.camera2_pitch) > 90) {
+                vec3.scale(up2, up2, -1);
+            }
+            vec3.normalize(up2, up2);
+
+            // Calculate Camera 2 position with stereo baseline offset
+            const eye2 = vec3.clone(camState.position);
+            // ★ Apply horizontal offset (stereo baseline) along the right vector
+            vec3.scaleAndAdd(eye2, eye2, right2, calc_constants.stereo_baseline);
+
+            const target2 = vec3.create();
+            vec3.scaleAndAdd(target2, eye2, forward2, initialDist);
+
+            const V2 = mat4.lookAt(mat4.create(), eye2, target2, up2);
+
+            const model2 = mat4.create();
+            mat4.multiply(model2, T_reskew, T_unskew);
+
+            const viewProj2 = mat4.mul(mat4.create(), P, mat4.mul(mat4.create(), V2, model2));
+
+            // Skybox for Camera 2
+            const skyView2 = mat4.clone(V2);
+            skyView2[12] = 0.0;
+            skyView2[13] = 0.0;
+            skyView2[14] = 0.0;
+            const viewProjSky2 = mat4.mul(mat4.create(), P, skyView2);
+            const invViewProjSky2 = mat4.invert(mat4.create(), viewProjSky2);
+
+            // Draw skybox
+            RenderPass2.setPipeline(SkyboxPipeline);
+            RenderPass2.setBindGroup(0, SkyboxBindGroup);
+            for (let i = 0; i < 16; ++i) {
+                Skybox_view.setFloat32(4 * i, invViewProjSky2[i], true);
+            }
+            device.queue.writeBuffer(Skybox_uniformBuffer, 0, Skybox_uniforms);
+            RenderPass2.draw(3, 1, 0, 0);
+
+            // Draw models
+            RenderPass2.setPipeline(ModelPipeline);
+            for (const obj of model_properties) {
+                const mv = obj.uniformView;
+                for (let i = 0; i < 16; ++i) {
+                    mv.setFloat32(4 * i, viewProj2[i], true);
+                    mv.setFloat32(4 * (16 + i), obj.modelMatrix[i], true);
+                }
+                mv.setFloat32(128, eye2[0], true);
+                mv.setFloat32(132, eye2[1], true);
+                mv.setFloat32(136, eye2[2], true);
+                device.queue.writeBuffer(obj.uniformBuffer, 0, obj.uniforms);
+                RenderPass2.setBindGroup(0, obj.bindGroup);
+                RenderPass2.setVertexBuffer(0, boxVB);
+                RenderPass2.setIndexBuffer(boxIB, 'uint32');
+                RenderPass2.drawIndexed(boxIndices.length);
+            }
+
+            // Draw wave surface
+            RenderPass2.setPipeline(RenderPipeline);
+            RenderPass2.setBindGroup(0, RenderBindGroup2);  // ★ Use Camera 2 bind group
+            for (let i = 0; i < 16; ++i) {
+                Render_view2.setFloat32(192 + 4 * i, viewProj2[i], true);  // ★ Use Camera 2 view
+            }
+            device.queue.writeBuffer(Render_uniformBuffer2, 0, Render_uniforms2);  // ★ Use Camera 2 buffer
+            RenderPass2.setVertexBuffer(0, gridVertexBuffer);
+            RenderPass2.draw(numVertices);
+
+            RenderPass2.end();
+            device.queue.submit([commandEncoder.finish()]);
+            
+            // Store second camera render to texture
+            if (calc_constants.full_screen == 0) {
+                const current_render2 = context2.getCurrentTexture();
+                commandEncoder = device.createCommandEncoder();
+                commandEncoder.copyTextureToTexture(
+                    { texture: current_render2 },
+                    { texture: txScreen2 },
+                    { width: canvas2.width, height: canvas2.height, depthOrArrayLayers: 1 }
+                );
+                device.queue.submit([commandEncoder.finish()]);
+            }
+        }
+        // ★★★ END OF SECOND RENDER PASS ★★★
 
         // for the tooltip & time series, extract pixel values
         if(calc_constants.updateTimeSeriesTx == 1 || calc_constants.chartDataUpdate == 1) {  // update the time series locations texture, and reset plot
@@ -2927,6 +3193,12 @@ document.addEventListener('DOMContentLoaded', function () {
         { id: 'colorVal_min-button', input: 'colorVal_min-input', property: 'colorVal_min' },
         { id: 'arrow_scale-button', input: 'arrow_scale-input', property: 'arrow_scale' },
         { id: 'arrow_density-button', input: 'arrow_density-input', property: 'arrow_density' },
+        // ★ Stereo camera controls
+        { id: 'camera1_yaw-button', input: 'camera1_yaw-input', property: 'camera1_yaw' },
+        { id: 'camera1_pitch-button', input: 'camera1_pitch-input', property: 'camera1_pitch' },
+        { id: 'camera2_yaw-button', input: 'camera2_yaw-input', property: 'camera2_yaw' },
+        { id: 'camera2_pitch-button', input: 'camera2_pitch-input', property: 'camera2_pitch' },
+        { id: 'stereo_baseline-button', input: 'stereo_baseline-input', property: 'stereo_baseline' },
         { id: 'whiteWaterDecayRate-button', input: 'whiteWaterDecayRate-input', property: 'whiteWaterDecayRate' },
         { id: 'changeAmplitude-button', input: 'changeAmplitude-input', property: 'changeAmplitude' },
         { id: 'changeRadius-button', input: 'changeRadius-input', property: 'changeRadius' },
@@ -3056,6 +3328,10 @@ document.addEventListener('DOMContentLoaded', function () {
             
             canvas.width = window_width;
             canvas.height = window_height;
+            
+            // ★ Match canvas2 to canvas1 size
+            canvas2.width = canvas.width;
+            canvas2.height = canvas.height;
         } else {
             // Set canvas size back to normal when exiting full screen
             if (grid_ratio >= 1.0) {
@@ -3070,6 +3346,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 calc_constants.canvas_width_ratio = grid_ratio;
                 calc_constants.canvas_height_ratio = 1.0; 
             }
+            
+            // ★ Always match canvas2 to canvas1 when exiting fullscreen
+            canvas2.width = canvas.width;
+            canvas2.height = canvas.height;
         }
     }
 

@@ -18,12 +18,12 @@
             font-family: Courier, monospace;
         }
 
-        #webgpuCanvas {
+        #webgpuCanvas, #webgpuCanvas2 {
             /* Add any specific styles for your canvas */
             width: 100%;
             height: auto; /* Adjust based on your design */
             margin-top: 2px;
-            margin-bottom: 20px;
+            margin-bottom: 10px;
             touch-action: none; /* Prevent touch events from interfering with the canvas */
         }
 
@@ -482,6 +482,54 @@
                     
                     <!-- Full Screen Canvas-->
                     <button id="fullscreen-button">View Simulation in Full Screen</button>
+                    <br />
+                    <br />
+
+                    <html4f>
+                    <b>★ STEREO CAMERA CONTROLS ★</b><br>
+                    These controls adjust the viewing angles for dual-camera rendering.
+                    </html4f>
+                    <br />
+                    <br />
+
+                    <!-- Camera 1 Angles -->
+                    <label for="camera1_yaw-input"><b>Camera 1 Yaw - Left View (degrees):</b></label>
+                    <br />
+                    <input type="number" id="camera1_yaw-input" name="camera1_yawValue" value="-30" step="5">
+                    <button id="camera1_yaw-button" type="button">Update</button>
+                    <br />
+                    <br />
+
+                    <label for="camera1_pitch-input"><b>Camera 1 Pitch - Vertical angle (degrees):</b></label>
+                    <br />
+                    <input type="number" id="camera1_pitch-input" name="camera1_pitchValue" value="5" step="1">
+                    <button id="camera1_pitch-button" type="button">Update</button>
+                    <br />
+                    <br />
+
+                    <!-- Camera 2 Angles -->
+                    <label for="camera2_yaw-input"><b>Camera 2 Yaw - Right View (degrees):</b></label>
+                    <br />
+                    <input type="number" id="camera2_yaw-input" name="camera2_yawValue" value="30" step="5">
+                    <button id="camera2_yaw-button" type="button">Update</button>
+                    <br />
+                    <br />
+
+                    <label for="camera2_pitch-input"><b>Camera 2 Pitch - Vertical angle (degrees):</b></label>
+                    <br />
+                    <input type="number" id="camera2_pitch-input" name="camera2_pitchValue" value="5" step="1">
+                    <button id="camera2_pitch-button" type="button">Update</button>
+                    <br />
+                    <br />
+
+                    <html4f>
+                    <b>Stereo Offset (baseline separation):</b>
+                    </html4f>
+                    <br />
+                    <label for="stereo_baseline-input">Horizontal offset for Camera 2 (meters):</label>
+                    <br />
+                    <input type="number" id="stereo_baseline-input" name="stereo_baselineValue" value="2.0" step="0.5">
+                    <button id="stereo_baseline-button" type="button">Update</button>
                     <br />
                     <br />
                 </div>
@@ -1411,12 +1459,20 @@
 
 
             <div class="window-header">
-                <span><center>  Simulation Window  </center></span>
+                <span><center>  Simulation Window - Camera 1 (Main View)  </center></span>
                 <button class="minimize-button">-</button>
             </div>            
             <div class="window-content">
                 <canvas id="webgpuCanvas"></canvas>
                 <div id="tooltip" style="position: absolute; display: none;"></div>
+            </div>
+
+            <div class="window-header">
+                <span><center>  Simulation Window - Camera 2 (Stereo View)  </center></span>
+                <button class="minimize-button">-</button>
+            </div>            
+            <div class="window-content">
+                <canvas id="webgpuCanvas2"></canvas>
             </div>
 
 
