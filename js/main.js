@@ -1931,7 +1931,6 @@ async function initializeWebGPUApp(configContent, bathymetryContent, waveContent
         if (calc_constants.viewType == 1)
         {
             // ★★★ CAMERA 1 CONFIGURATION - MUST BE BEFORE RENDER PASS ★★★
-            console.log(`[Camera 1] Yaw: ${calc_constants.camera1_yaw}°, Pitch: ${calc_constants.camera1_pitch}°`);
             
             // Yaw controls rotation
             Render_view.setFloat32(56, calc_constants.camera1_yaw, true);  // f32 rotationAngle_xy
@@ -1945,7 +1944,6 @@ async function initializeWebGPUApp(configContent, bathymetryContent, waveContent
             const pitchZoomFactor = calc_constants.forward * (1.0 + Math.abs(calc_constants.camera1_pitch) / 90.0);
             Render_view.setFloat32(68, pitchZoomFactor, true);  // f32 forward (zoom)
             
-            console.log(`[Camera 1] shift_y: ${shift_y_cam1}, zoom: ${pitchZoomFactor}`);
 
             // ★ Write uniforms to GPU BEFORE creating command encoder
             device.queue.writeBuffer(Render_uniformBuffer, 0, Render_uniforms);
@@ -2265,7 +2263,6 @@ async function initializeWebGPUApp(configContent, bathymetryContent, waveContent
             // ═══════════════════════════════════════════════════
             
             // ★★★ CAMERA 2 CONFIGURATION - PREPARE BUFFER FIRST ★★★
-            console.log(`[Camera 2] Yaw: ${calc_constants.camera2_yaw}°, Pitch: ${calc_constants.camera2_pitch}°`);
             
             // Yaw controls rotation
             Render_view2.setFloat32(56, calc_constants.camera2_yaw, true);  
@@ -2279,7 +2276,6 @@ async function initializeWebGPUApp(configContent, bathymetryContent, waveContent
             const pitchZoomFactor2 = calc_constants.forward * (1.0 + Math.abs(calc_constants.camera2_pitch) / 90.0);
             Render_view2.setFloat32(68, pitchZoomFactor2, true);  
             
-            console.log(`[Camera 2] shift_y: ${shift_y_cam2}, zoom: ${pitchZoomFactor2}`);
 
             // ★ Write to GPU BEFORE starting render pass
             device.queue.writeBuffer(Render_uniformBuffer2, 0, Render_uniforms2);
